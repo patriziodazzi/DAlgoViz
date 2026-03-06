@@ -112,6 +112,89 @@
             font-size: 0.8rem;
             color: var(--text-dim);
         }
+        .chart-legend {
+            display: flex;
+            gap: 16px;
+            margin-top: 6px;
+            font-size: 0.75rem;
+            color: var(--text-dim);
+        }
+        .legend-item {
+            display: flex;
+            align-items: center;
+            gap: 4px;
+        }
+        .legend-line {
+            display: inline-block;
+            width: 16px;
+            height: 2px;
+        }
+        .legend-dashed {
+            background: repeating-linear-gradient(90deg, #666 0, #666 4px, transparent 4px, transparent 8px) !important;
+        }
+        .little-layout {
+            display: flex;
+            gap: 16px;
+            align-items: stretch;
+        }
+        .little-right {
+            width: 240px;
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+        }
+        .little-equation {
+            text-align: center;
+            padding: 16px 12px;
+            background: var(--bg);
+            border-radius: 6px;
+            border: 1px solid #333;
+        }
+        .little-equation .result {
+            color: var(--accent);
+            font-weight: bold;
+            font-size: 2rem;
+            font-family: 'Courier New', monospace;
+        }
+        .little-equation .label {
+            font-size: 0.75rem;
+            color: var(--text-dim);
+            margin-top: 2px;
+        }
+        .queue-viz {
+            background: var(--bg);
+            border-radius: 6px;
+            border: 1px solid #333;
+            padding: 12px;
+            flex: 1;
+        }
+        .qv-title {
+            font-size: 0.7rem;
+            color: var(--text-dim);
+            margin-bottom: 8px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+        .queue-dots {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 3px;
+        }
+        .queue-dot {
+            width: 7px;
+            height: 7px;
+            border-radius: 50%;
+            background: var(--accent2);
+            opacity: 0.85;
+        }
+        .queue-dot.overflow {
+            background: var(--danger);
+        }
+        .queue-summary {
+            margin-top: 8px;
+            font-size: 0.75rem;
+            color: var(--text-dim);
+        }
 
         /* --- Lamport --- */
         .lamport-container {
@@ -206,6 +289,8 @@
         @media (max-width: 900px) {
             .laws-grid { grid-template-columns: 1fr; }
             .lamport-container { flex-direction: column; }
+            .little-layout { flex-direction: column; }
+            .little-right { width: 100%; }
         }
     </style>
 </head>
@@ -253,6 +338,11 @@
                         </label>
                     </div>
                     <canvas id="gustafson-chart"></canvas>
+                    <div class="chart-legend">
+                        <span class="legend-item"><span class="legend-line" style="background:#0ea5e9"></span> Gustafson</span>
+                        <span class="legend-item"><span class="legend-line" style="background:#e94560"></span> Amdahl</span>
+                        <span class="legend-item"><span class="legend-line legend-dashed"></span> Linear</span>
+                    </div>
                     <div class="info" id="gustafson-info"></div>
                 </div>
                 <!-- USL -->
@@ -277,7 +367,7 @@
                     <div class="info" id="usl-info"></div>
                 </div>
                 <!-- Little's Law -->
-                <div class="law-card">
+                <div class="law-card" style="grid-column: 1 / -1;">
                     <h3>Little's Law</h3>
                     <div class="formula">L = λ · W</div>
                     <div class="controls">
@@ -290,7 +380,17 @@
                             <span class="value" id="little-w-val">0.050</span>
                         </label>
                     </div>
-                    <canvas id="little-chart"></canvas>
+                    <div class="little-layout">
+                        <canvas id="little-heatmap" style="flex:1; height:220px;"></canvas>
+                        <div class="little-right">
+                            <div class="little-equation" id="little-eq"></div>
+                            <div class="queue-viz">
+                                <div class="qv-title">System Queue</div>
+                                <div class="queue-dots" id="queue-dots"></div>
+                                <div class="queue-summary" id="queue-count"></div>
+                            </div>
+                        </div>
+                    </div>
                     <div class="info" id="little-info"></div>
                 </div>
             </div>
@@ -437,6 +537,179 @@
         }
     }
 
+    // ==================== COMPARISON CHART ====================
+    function drawComparisonChart(canvasId, xs, series, options = {}) {
+        const canvas = document.getElementById(canvasId);
+        const ctx = canvas.getContext('2d');
+        const dpr = window.devicePixelRatio || 1;
+        const rect = canvas.getBoundingClientRect();
+        canvas.width = rect.width * dpr;
+        canvas.height = rect.height * dpr;
+        ctx.scale(dpr, dpr);
+        const w = rect.width, h = rect.height;
+        const pad = { top: 20, right: 20, bottom: 35, left: 50 };
+        const pw = w - pad.left - pad.right;
+        const ph = h - pad.top - pad.bottom;
+        const xMin = Math.min(...xs), xMax = Math.max(...xs);
+        const yMin = 0;
+        let yMax = 0;
+        for (const s of series) { const m = Math.max(...s.values); if (m > yMax) yMax = m; }
+        yMax *= 1.15;
+        const toX = x => pad.left + (x - xMin) / (xMax - xMin) * pw;
+        const toY = y => pad.top + ph - (y - yMin) / (yMax - yMin) * ph;
+        ctx.clearRect(0, 0, w, h);
+        // Grid
+        ctx.strokeStyle = '#333'; ctx.lineWidth = 0.5;
+        for (let i = 0; i <= 4; i++) {
+            const y = pad.top + (ph / 4) * i;
+            ctx.beginPath(); ctx.moveTo(pad.left, y); ctx.lineTo(w - pad.right, y); ctx.stroke();
+        }
+        // Linear reference
+        if (options.showLinear) {
+            ctx.strokeStyle = '#555'; ctx.lineWidth = 1; ctx.setLineDash([4, 4]);
+            ctx.beginPath();
+            ctx.moveTo(toX(xMin), toY(xMin));
+            ctx.lineTo(toX(xMax), toY(Math.min(xMax, yMax)));
+            ctx.stroke(); ctx.setLineDash([]);
+        }
+        // Fill gap between series
+        if (series.length === 2) {
+            ctx.fillStyle = 'rgba(14, 165, 233, 0.08)';
+            ctx.beginPath();
+            for (let i = 0; i < xs.length; i++) {
+                const x = toX(xs[i]), y = toY(series[0].values[i]);
+                i === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y);
+            }
+            for (let i = xs.length - 1; i >= 0; i--) {
+                ctx.lineTo(toX(xs[i]), toY(series[1].values[i]));
+            }
+            ctx.closePath();
+            ctx.fill();
+        }
+        // Series lines
+        for (const s of series) {
+            ctx.strokeStyle = s.color; ctx.lineWidth = 2;
+            ctx.beginPath();
+            for (let i = 0; i < xs.length; i++) {
+                const x = toX(xs[i]), y = toY(s.values[i]);
+                i === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y);
+            }
+            ctx.stroke();
+        }
+        // Axes labels
+        ctx.fillStyle = '#999'; ctx.font = '11px sans-serif'; ctx.textAlign = 'center';
+        ctx.fillText(options.xLabel || 'Processors (N)', w / 2, h - 4);
+        ctx.save(); ctx.translate(12, h / 2); ctx.rotate(-Math.PI / 2);
+        ctx.fillText(options.yLabel || 'Speedup', 0, 0); ctx.restore();
+        // Ticks
+        ctx.font = '10px monospace'; ctx.textAlign = 'center';
+        for (let i = 0; i <= 4; i++) {
+            ctx.fillText(Math.round(xMin + (xMax - xMin) / 4 * i), toX(xMin + (xMax - xMin) / 4 * i), h - pad.bottom + 14);
+        }
+        ctx.textAlign = 'right';
+        for (let i = 0; i <= 4; i++) {
+            const yv = yMin + (yMax - yMin) / 4 * i;
+            ctx.fillText(yv.toFixed(1), pad.left - 6, toY(yv) + 3);
+        }
+    }
+
+    // ==================== LITTLE'S LAW HEATMAP ====================
+    function drawLittleHeatmap(canvasId, currentLambda, currentW) {
+        const canvas = document.getElementById(canvasId);
+        const ctx = canvas.getContext('2d');
+        const dpr = window.devicePixelRatio || 1;
+        const rect = canvas.getBoundingClientRect();
+        canvas.width = rect.width * dpr;
+        canvas.height = rect.height * dpr;
+        ctx.scale(dpr, dpr);
+        const w = rect.width, h = rect.height;
+        const pad = { top: 20, right: 55, bottom: 35, left: 50 };
+        const pw = w - pad.left - pad.right;
+        const ph = h - pad.top - pad.bottom;
+        ctx.clearRect(0, 0, w, h);
+        const lambdaMin = 1, lambdaMax = 1000;
+        const wMin = 0.001, wMax = 2.0;
+        const cols = 80, rows = 40;
+        const cellW = pw / cols, cellH = ph / rows;
+        function lColor(L) {
+            const t = Math.min(L / 200, 1);
+            let r, g, b;
+            if (t < 0.25) { const s = t / 0.25; r = 0; g = Math.floor(100 * s); b = Math.floor(180 - 80 * s); }
+            else if (t < 0.5) { const s = (t - 0.25) / 0.25; r = 0; g = Math.floor(100 + 155 * s); b = Math.floor(100 - 100 * s); }
+            else if (t < 0.75) { const s = (t - 0.5) / 0.25; r = Math.floor(255 * s); g = 255; b = 0; }
+            else { const s = (t - 0.75) / 0.25; r = 255; g = Math.floor(255 - 255 * s); b = 0; }
+            return `rgb(${r},${g},${b})`;
+        }
+        for (let row = 0; row < rows; row++) {
+            for (let col = 0; col < cols; col++) {
+                const lambda = lambdaMin + (lambdaMax - lambdaMin) * (col + 0.5) / cols;
+                const wVal = wMax - (wMax - wMin) * (row + 0.5) / rows;
+                ctx.fillStyle = lColor(lambda * wVal);
+                ctx.fillRect(pad.left + col * cellW, pad.top + row * cellH, cellW + 0.5, cellH + 0.5);
+            }
+        }
+        // Current point crosshair
+        const cx = pad.left + (currentLambda - lambdaMin) / (lambdaMax - lambdaMin) * pw;
+        const cy = pad.top + (1 - (currentW - wMin) / (wMax - wMin)) * ph;
+        ctx.strokeStyle = 'rgba(255,255,255,0.6)'; ctx.lineWidth = 1; ctx.setLineDash([3, 3]);
+        ctx.beginPath(); ctx.moveTo(cx, pad.top); ctx.lineTo(cx, pad.top + ph); ctx.stroke();
+        ctx.beginPath(); ctx.moveTo(pad.left, cy); ctx.lineTo(pad.left + pw, cy); ctx.stroke();
+        ctx.setLineDash([]);
+        ctx.fillStyle = 'white'; ctx.strokeStyle = '#111'; ctx.lineWidth = 2;
+        ctx.beginPath(); ctx.arc(cx, cy, 5, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+        // L value label near cursor
+        const L = currentLambda * currentW;
+        ctx.fillStyle = 'white'; ctx.font = 'bold 11px monospace';
+        ctx.textAlign = 'left';
+        const labelX = cx + 10 > pad.left + pw - 50 ? cx - 55 : cx + 10;
+        const labelY = cy - 10 < pad.top + 10 ? cy + 16 : cy - 8;
+        ctx.fillText(`L = ${L.toFixed(1)}`, labelX, labelY);
+        // Axes
+        ctx.fillStyle = '#999'; ctx.font = '11px sans-serif'; ctx.textAlign = 'center';
+        ctx.fillText('Arrival rate \u03bb (req/s)', pad.left + pw / 2, h - 4);
+        ctx.save(); ctx.translate(12, pad.top + ph / 2); ctx.rotate(-Math.PI / 2);
+        ctx.fillText('Avg time W (s)', 0, 0); ctx.restore();
+        // Ticks
+        ctx.font = '10px monospace'; ctx.textAlign = 'center';
+        for (let i = 0; i <= 4; i++) {
+            ctx.fillText(Math.round(lambdaMin + (lambdaMax - lambdaMin) / 4 * i), pad.left + pw / 4 * i, h - pad.bottom + 14);
+        }
+        ctx.textAlign = 'right';
+        for (let i = 0; i <= 4; i++) {
+            const wv = wMax - (wMax - wMin) / 4 * i;
+            ctx.fillText(wv.toFixed(2), pad.left - 6, pad.top + ph / 4 * i + 3);
+        }
+        // Color bar
+        const cbX = w - pad.right + 8, cbW = 10;
+        for (let i = 0; i < ph; i++) {
+            ctx.fillStyle = lColor(200 * (1 - i / ph));
+            ctx.fillRect(cbX, pad.top + i, cbW, 1);
+        }
+        ctx.strokeStyle = '#444'; ctx.lineWidth = 1;
+        ctx.strokeRect(cbX, pad.top, cbW, ph);
+        ctx.fillStyle = '#999'; ctx.font = '9px monospace'; ctx.textAlign = 'left';
+        ctx.fillText('200+', cbX + cbW + 3, pad.top + 8);
+        ctx.fillText('100', cbX + cbW + 3, pad.top + ph * 0.5 + 3);
+        ctx.fillText('0', cbX + cbW + 3, pad.top + ph);
+    }
+
+    function updateQueueViz(L) {
+        const container = document.getElementById('queue-dots');
+        container.innerHTML = '';
+        const maxDots = 100;
+        const numDots = Math.min(Math.round(L), maxDots);
+        const isOverflow = L > maxDots;
+        for (let i = 0; i < numDots; i++) {
+            const dot = document.createElement('div');
+            dot.className = 'queue-dot' + (isOverflow && i >= numDots - 10 ? ' overflow' : '');
+            container.appendChild(dot);
+        }
+        const countEl = document.getElementById('queue-count');
+        if (L < 1) countEl.textContent = '< 1 item (system mostly idle)';
+        else if (isOverflow) countEl.textContent = `\u2248${Math.round(L)} items (showing ${maxDots})`;
+        else countEl.textContent = `${Math.round(L)} items in system`;
+    }
+
     // ==================== SCALABILITY LAWS ====================
     async function updateAmdahl() {
         const f = parseFloat(document.getElementById('amdahl-f').value);
@@ -460,14 +733,20 @@
         const n = parseInt(document.getElementById('gustafson-n').value);
         document.getElementById('gustafson-f-val').textContent = f.toFixed(2);
         document.getElementById('gustafson-n-val').textContent = n;
-        const res = await fetch(`/api/laws/gustafson?f=${f}&n=${n}`);
-        const data = await res.json();
-        drawLineChart('gustafson-chart', data.processors, data.scaled_speedup, {
-            showLinear: true,
-            yLabel: 'Scaled Speedup S(N)',
-        });
-        document.getElementById('gustafson-info').textContent =
-            `Scaled speedup with ${n} processors: ${data.scaled_speedup[data.scaled_speedup.length-1].toFixed(2)}x (vs linear ${n}x)`;
+        const [gRes, aRes] = await Promise.all([
+            fetch(`/api/laws/gustafson?f=${f}&n=${n}`),
+            fetch(`/api/laws/amdahl?f=${f}&n=${n}`)
+        ]);
+        const gData = await gRes.json();
+        const aData = await aRes.json();
+        drawComparisonChart('gustafson-chart', gData.processors, [
+            { values: gData.scaled_speedup, color: '#0ea5e9', label: 'Gustafson' },
+            { values: aData.speedup, color: '#e94560', label: 'Amdahl' },
+        ], { showLinear: true, yLabel: 'Speedup S(N)' });
+        const gFinal = gData.scaled_speedup[gData.scaled_speedup.length-1].toFixed(1);
+        const aFinal = aData.speedup[aData.speedup.length-1].toFixed(1);
+        document.getElementById('gustafson-info').innerHTML =
+            `Gustafson: <b>${gFinal}x</b> vs Amdahl: <b>${aFinal}x</b> (ceiling ${(1/f).toFixed(1)}x) with ${n} processors. Gustafson scales the problem with N \u2014 no fixed ceiling.`;
     }
 
     async function updateUSL() {
@@ -494,21 +773,25 @@
         const w = parseFloat(document.getElementById('little-w').value);
         document.getElementById('little-lambda-val').textContent = lam;
         document.getElementById('little-w-val').textContent = w.toFixed(3);
-
-        // Draw L as a function of λ for fixed W, and also L=f(W) for fixed λ
-        const lambdas = [];
-        const Ls = [];
-        for (let l = 1; l <= 1000; l += 5) {
-            lambdas.push(l);
-            Ls.push(l * w);
-        }
-        drawLineChart('little-chart', lambdas, Ls, {
-            xLabel: 'Arrival rate λ (req/s)',
-            yLabel: 'Items in system (L)',
-            color: '#22c55e',
-        });
-        document.getElementById('little-info').textContent =
-            `L = λ·W = ${lam} × ${w.toFixed(3)} = ${(lam * w).toFixed(1)} items in system at steady state.`;
+        const L = lam * w;
+        // Heatmap: L across (λ, W) space
+        drawLittleHeatmap('little-heatmap', lam, w);
+        // Equation display
+        document.getElementById('little-eq').innerHTML =
+            `<div style="font-size:0.75rem;color:var(--text-dim)">L = \u03bb \u00d7 W</div>` +
+            `<div class="result">${L.toFixed(1)}</div>` +
+            `<div class="label">items in system</div>`;
+        // Queue visualization
+        updateQueueViz(L);
+        // Practical interpretation
+        let interp;
+        if (L < 1) interp = 'System mostly idle \u2014 ample capacity.';
+        else if (L < 10) interp = 'Light load \u2014 comfortable headroom.';
+        else if (L < 50) interp = 'Moderate load \u2014 monitor latency trends.';
+        else if (L < 200) interp = 'Heavy load \u2014 consider scaling or reducing W.';
+        else interp = 'Very heavy \u2014 significant queuing delays expected.';
+        document.getElementById('little-info').innerHTML =
+            `<b>L = ${lam} \u00d7 ${w.toFixed(3)} = ${L.toFixed(1)}</b> \u2014 ${interp}`;
     }
 
     // Wire up sliders

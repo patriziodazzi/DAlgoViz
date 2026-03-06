@@ -1,6 +1,5 @@
 """CLI entry point for DAlgoViz."""
 
-import webbrowser
 from dalgoviz.server import create_app
 
 
