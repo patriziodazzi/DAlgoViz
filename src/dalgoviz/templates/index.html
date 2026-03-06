@@ -1,0 +1,729 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>DAlgoViz</title>
+    <style>
+        :root {
+            --bg: #1a1a2e;
+            --surface: #16213e;
+            --surface2: #0f3460;
+            --accent: #e94560;
+            --accent2: #0ea5e9;
+            --text: #eee;
+            --text-dim: #999;
+            --success: #22c55e;
+            --warning: #eab308;
+            --danger: #ef4444;
+        }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+            background: var(--bg);
+            color: var(--text);
+            min-height: 100vh;
+        }
+        header {
+            background: var(--surface);
+            border-bottom: 2px solid var(--accent);
+            padding: 12px 24px;
+            display: flex;
+            align-items: center;
+            gap: 24px;
+        }
+        header h1 {
+            font-size: 1.3rem;
+            font-weight: 700;
+            color: var(--accent);
+        }
+        header h1 span { color: var(--text); font-weight: 300; }
+        nav { display: flex; gap: 4px; }
+        nav button {
+            background: transparent;
+            border: 1px solid var(--text-dim);
+            color: var(--text-dim);
+            padding: 6px 16px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 0.85rem;
+            transition: all 0.15s;
+        }
+        nav button:hover { border-color: var(--accent2); color: var(--accent2); }
+        nav button.active {
+            background: var(--accent2);
+            border-color: var(--accent2);
+            color: white;
+        }
+        main { padding: 24px; }
+        .tab-content { display: none; }
+        .tab-content.active { display: block; }
+
+        /* --- Laws --- */
+        .laws-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+        }
+        .law-card {
+            background: var(--surface);
+            border-radius: 8px;
+            padding: 20px;
+            border: 1px solid #333;
+        }
+        .law-card h3 {
+            color: var(--accent2);
+            margin-bottom: 4px;
+            font-size: 1rem;
+        }
+        .law-card .formula {
+            font-family: 'Courier New', monospace;
+            color: var(--text-dim);
+            font-size: 0.8rem;
+            margin-bottom: 12px;
+        }
+        .law-card .controls {
+            display: flex;
+            gap: 12px;
+            align-items: center;
+            flex-wrap: wrap;
+            margin-bottom: 12px;
+        }
+        .law-card label {
+            font-size: 0.8rem;
+            color: var(--text-dim);
+        }
+        .law-card input[type=range] {
+            width: 120px;
+            accent-color: var(--accent2);
+        }
+        .law-card .value {
+            font-family: monospace;
+            color: var(--accent);
+            font-size: 0.85rem;
+            min-width: 40px;
+        }
+        .law-card canvas {
+            width: 100%;
+            height: 200px;
+        }
+        .law-card .info {
+            margin-top: 8px;
+            font-size: 0.8rem;
+            color: var(--text-dim);
+        }
+
+        /* --- Lamport --- */
+        .lamport-container {
+            display: flex;
+            gap: 20px;
+        }
+        .lamport-controls {
+            background: var(--surface);
+            border-radius: 8px;
+            padding: 16px;
+            min-width: 200px;
+            border: 1px solid #333;
+        }
+        .lamport-controls h3 {
+            color: var(--accent2);
+            margin-bottom: 12px;
+            font-size: 0.95rem;
+        }
+        .lamport-controls button {
+            display: block;
+            width: 100%;
+            padding: 8px 12px;
+            margin-bottom: 6px;
+            background: var(--surface2);
+            border: 1px solid #444;
+            color: var(--text);
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 0.85rem;
+            transition: all 0.15s;
+        }
+        .lamport-controls button:hover {
+            background: var(--accent2);
+            border-color: var(--accent2);
+        }
+        .lamport-controls button:disabled {
+            opacity: 0.4;
+            cursor: not-allowed;
+        }
+        .process-list {
+            margin-top: 12px;
+            border-top: 1px solid #333;
+            padding-top: 12px;
+        }
+        .process-item {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 4px 0;
+            font-size: 0.85rem;
+        }
+        .process-item .name { font-weight: 600; }
+        .process-item .clock {
+            font-family: monospace;
+            color: var(--accent);
+        }
+        .process-item.crashed .name {
+            color: var(--danger);
+            text-decoration: line-through;
+        }
+        .process-item button {
+            width: auto;
+            display: inline;
+            padding: 2px 8px;
+            margin: 0;
+            font-size: 0.75rem;
+        }
+        .lamport-diagram {
+            flex: 1;
+            background: var(--surface);
+            border-radius: 8px;
+            padding: 20px;
+            border: 1px solid #333;
+            overflow-x: auto;
+        }
+        .lamport-diagram h3 {
+            color: var(--accent2);
+            margin-bottom: 12px;
+            font-size: 0.95rem;
+        }
+        .step-info {
+            font-size: 0.8rem;
+            color: var(--text-dim);
+            margin-top: 8px;
+        }
+        canvas#lamport-canvas {
+            background: var(--bg);
+            border-radius: 4px;
+            border: 1px solid #333;
+        }
+
+        @media (max-width: 900px) {
+            .laws-grid { grid-template-columns: 1fr; }
+            .lamport-container { flex-direction: column; }
+        }
+    </style>
+</head>
+<body>
+    <header>
+        <h1>DAlgoViz <span>v0.1</span></h1>
+        <nav>
+            <button class="active" onclick="showTab('laws')">Scalability Laws</button>
+            <button onclick="showTab('lamport')">Lamport Clocks</button>
+        </nav>
+    </header>
+    <main>
+        <!-- ==================== SCALABILITY LAWS ==================== -->
+        <div id="tab-laws" class="tab-content active">
+            <div class="laws-grid">
+                <!-- Amdahl -->
+                <div class="law-card">
+                    <h3>Amdahl's Law</h3>
+                    <div class="formula">S(N) = 1 / (f + (1−f)/N)</div>
+                    <div class="controls">
+                        <label>Serial fraction (f):
+                            <input type="range" id="amdahl-f" min="0.01" max="0.99" step="0.01" value="0.1">
+                            <span class="value" id="amdahl-f-val">0.10</span>
+                        </label>
+                        <label>Max processors:
+                            <input type="range" id="amdahl-n" min="4" max="256" step="4" value="64">
+                            <span class="value" id="amdahl-n-val">64</span>
+                        </label>
+                    </div>
+                    <canvas id="amdahl-chart"></canvas>
+                    <div class="info" id="amdahl-info"></div>
+                </div>
+                <!-- Gustafson -->
+                <div class="law-card">
+                    <h3>Gustafson's Law</h3>
+                    <div class="formula">S(N) = N − f·(N−1)</div>
+                    <div class="controls">
+                        <label>Serial fraction (f):
+                            <input type="range" id="gustafson-f" min="0.01" max="0.99" step="0.01" value="0.1">
+                            <span class="value" id="gustafson-f-val">0.10</span>
+                        </label>
+                        <label>Max processors:
+                            <input type="range" id="gustafson-n" min="4" max="256" step="4" value="64">
+                            <span class="value" id="gustafson-n-val">64</span>
+                        </label>
+                    </div>
+                    <canvas id="gustafson-chart"></canvas>
+                    <div class="info" id="gustafson-info"></div>
+                </div>
+                <!-- USL -->
+                <div class="law-card">
+                    <h3>Universal Scalability Law</h3>
+                    <div class="formula">C(N) = N / (1 + σ(N−1) + κN(N−1))</div>
+                    <div class="controls">
+                        <label>Contention (σ):
+                            <input type="range" id="usl-sigma" min="0.001" max="0.5" step="0.001" value="0.05">
+                            <span class="value" id="usl-sigma-val">0.050</span>
+                        </label>
+                        <label>Coherency (κ):
+                            <input type="range" id="usl-kappa" min="0.0001" max="0.1" step="0.0001" value="0.01">
+                            <span class="value" id="usl-kappa-val">0.0100</span>
+                        </label>
+                        <label>Max processors:
+                            <input type="range" id="usl-n" min="4" max="256" step="4" value="64">
+                            <span class="value" id="usl-n-val">64</span>
+                        </label>
+                    </div>
+                    <canvas id="usl-chart"></canvas>
+                    <div class="info" id="usl-info"></div>
+                </div>
+                <!-- Little's Law -->
+                <div class="law-card">
+                    <h3>Little's Law</h3>
+                    <div class="formula">L = λ · W</div>
+                    <div class="controls">
+                        <label>Arrival rate (λ req/s):
+                            <input type="range" id="little-lambda" min="1" max="1000" step="1" value="100">
+                            <span class="value" id="little-lambda-val">100</span>
+                        </label>
+                        <label>Avg time in system (W sec):
+                            <input type="range" id="little-w" min="0.001" max="2" step="0.001" value="0.05">
+                            <span class="value" id="little-w-val">0.050</span>
+                        </label>
+                    </div>
+                    <canvas id="little-chart"></canvas>
+                    <div class="info" id="little-info"></div>
+                </div>
+            </div>
+        </div>
+
+        <!-- ==================== LAMPORT CLOCKS ==================== -->
+        <div id="tab-lamport" class="tab-content">
+            <div class="lamport-container">
+                <div class="lamport-controls">
+                    <h3>Controls</h3>
+                    <button id="btn-step" onclick="lamportStep()">▶ Step</button>
+                    <button id="btn-run" onclick="lamportRunAll()">▶▶ Run All</button>
+                    <button onclick="lamportReset()">↺ Reset</button>
+                    <div class="step-info" id="step-info">Step 0 / 0</div>
+                    <div class="process-list" id="process-list"></div>
+                </div>
+                <div class="lamport-diagram">
+                    <h3>Space-Time Diagram</h3>
+                    <canvas id="lamport-canvas" width="700" height="400"></canvas>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <script>
+    // ==================== TAB SWITCHING ====================
+    function showTab(name) {
+        document.querySelectorAll('.tab-content').forEach(t => t.classList.remove('active'));
+        document.querySelectorAll('nav button').forEach(b => b.classList.remove('active'));
+        document.getElementById('tab-' + name).classList.add('active');
+        document.querySelectorAll('nav button').forEach(b => {
+            if (b.textContent.toLowerCase().includes(name.substring(0, 3))) b.classList.add('active');
+        });
+    }
+
+    // ==================== CHART DRAWING ====================
+    function drawLineChart(canvasId, xs, ys, options = {}) {
+        const canvas = document.getElementById(canvasId);
+        const ctx = canvas.getContext('2d');
+        const dpr = window.devicePixelRatio || 1;
+        const rect = canvas.getBoundingClientRect();
+        canvas.width = rect.width * dpr;
+        canvas.height = rect.height * dpr;
+        ctx.scale(dpr, dpr);
+
+        const w = rect.width;
+        const h = rect.height;
+        const pad = { top: 20, right: 20, bottom: 35, left: 50 };
+        const pw = w - pad.left - pad.right;
+        const ph = h - pad.top - pad.bottom;
+
+        const xMin = options.xMin ?? Math.min(...xs);
+        const xMax = options.xMax ?? Math.max(...xs);
+        const yMin = options.yMin ?? 0;
+        const yMax = options.yMax ?? Math.max(...ys) * 1.1;
+
+        const toX = x => pad.left + (x - xMin) / (xMax - xMin) * pw;
+        const toY = y => pad.top + ph - (y - yMin) / (yMax - yMin) * ph;
+
+        // Clear
+        ctx.clearRect(0, 0, w, h);
+
+        // Grid
+        ctx.strokeStyle = '#333';
+        ctx.lineWidth = 0.5;
+        for (let i = 0; i <= 4; i++) {
+            const y = pad.top + (ph / 4) * i;
+            ctx.beginPath(); ctx.moveTo(pad.left, y); ctx.lineTo(w - pad.right, y); ctx.stroke();
+        }
+
+        // Linear reference (if requested)
+        if (options.showLinear) {
+            ctx.strokeStyle = '#444';
+            ctx.lineWidth = 1;
+            ctx.setLineDash([4, 4]);
+            ctx.beginPath();
+            ctx.moveTo(toX(xMin), toY(xMin));
+            ctx.lineTo(toX(xMax), toY(Math.min(xMax, yMax)));
+            ctx.stroke();
+            ctx.setLineDash([]);
+        }
+
+        // Horizontal reference line
+        if (options.hLine !== undefined) {
+            ctx.strokeStyle = '#e94560';
+            ctx.lineWidth = 1;
+            ctx.setLineDash([4, 4]);
+            ctx.beginPath();
+            const hy = toY(options.hLine);
+            ctx.moveTo(pad.left, hy);
+            ctx.lineTo(w - pad.right, hy);
+            ctx.stroke();
+            ctx.setLineDash([]);
+            ctx.fillStyle = '#e94560';
+            ctx.font = '10px monospace';
+            ctx.fillText(options.hLineLabel || options.hLine.toFixed(1), w - pad.right - 40, hy - 4);
+        }
+
+        // Peak marker
+        if (options.peakX !== undefined && options.peakY !== undefined) {
+            ctx.fillStyle = '#e94560';
+            ctx.beginPath();
+            ctx.arc(toX(options.peakX), toY(options.peakY), 5, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.fillStyle = '#e94560';
+            ctx.font = '10px monospace';
+            ctx.fillText(`peak: N=${options.peakX}`, toX(options.peakX) + 8, toY(options.peakY) - 4);
+        }
+
+        // Data line
+        ctx.strokeStyle = options.color || '#0ea5e9';
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        for (let i = 0; i < xs.length; i++) {
+            const x = toX(xs[i]);
+            const y = toY(ys[i]);
+            if (i === 0) ctx.moveTo(x, y);
+            else ctx.lineTo(x, y);
+        }
+        ctx.stroke();
+
+        // Axes labels
+        ctx.fillStyle = '#999';
+        ctx.font = '11px sans-serif';
+        ctx.textAlign = 'center';
+        ctx.fillText(options.xLabel || 'Processors (N)', w / 2, h - 4);
+        ctx.save();
+        ctx.translate(12, h / 2);
+        ctx.rotate(-Math.PI / 2);
+        ctx.fillText(options.yLabel || 'Speedup', 0, 0);
+        ctx.restore();
+
+        // Tick labels
+        ctx.font = '10px monospace';
+        ctx.textAlign = 'center';
+        for (let i = 0; i <= 4; i++) {
+            const xv = xMin + (xMax - xMin) / 4 * i;
+            ctx.fillText(Math.round(xv), toX(xv), h - pad.bottom + 14);
+        }
+        ctx.textAlign = 'right';
+        for (let i = 0; i <= 4; i++) {
+            const yv = yMin + (yMax - yMin) / 4 * i;
+            ctx.fillText(yv.toFixed(1), pad.left - 6, toY(yv) + 3);
+        }
+    }
+
+    // ==================== SCALABILITY LAWS ====================
+    async function updateAmdahl() {
+        const f = parseFloat(document.getElementById('amdahl-f').value);
+        const n = parseInt(document.getElementById('amdahl-n').value);
+        document.getElementById('amdahl-f-val').textContent = f.toFixed(2);
+        document.getElementById('amdahl-n-val').textContent = n;
+        const res = await fetch(`/api/laws/amdahl?f=${f}&n=${n}`);
+        const data = await res.json();
+        drawLineChart('amdahl-chart', data.processors, data.speedup, {
+            showLinear: true,
+            hLine: data.theoretical_max,
+            hLineLabel: `max: ${data.theoretical_max.toFixed(1)}`,
+            yLabel: 'Speedup S(N)',
+        });
+        document.getElementById('amdahl-info').textContent =
+            `Theoretical max speedup: ${data.theoretical_max.toFixed(2)}x (1/f). With ${n} processors: ${data.speedup[data.speedup.length-1].toFixed(2)}x`;
+    }
+
+    async function updateGustafson() {
+        const f = parseFloat(document.getElementById('gustafson-f').value);
+        const n = parseInt(document.getElementById('gustafson-n').value);
+        document.getElementById('gustafson-f-val').textContent = f.toFixed(2);
+        document.getElementById('gustafson-n-val').textContent = n;
+        const res = await fetch(`/api/laws/gustafson?f=${f}&n=${n}`);
+        const data = await res.json();
+        drawLineChart('gustafson-chart', data.processors, data.scaled_speedup, {
+            showLinear: true,
+            yLabel: 'Scaled Speedup S(N)',
+        });
+        document.getElementById('gustafson-info').textContent =
+            `Scaled speedup with ${n} processors: ${data.scaled_speedup[data.scaled_speedup.length-1].toFixed(2)}x (vs linear ${n}x)`;
+    }
+
+    async function updateUSL() {
+        const sigma = parseFloat(document.getElementById('usl-sigma').value);
+        const kappa = parseFloat(document.getElementById('usl-kappa').value);
+        const n = parseInt(document.getElementById('usl-n').value);
+        document.getElementById('usl-sigma-val').textContent = sigma.toFixed(3);
+        document.getElementById('usl-kappa-val').textContent = kappa.toFixed(4);
+        document.getElementById('usl-n-val').textContent = n;
+        const res = await fetch(`/api/laws/usl?sigma=${sigma}&kappa=${kappa}&n=${n}`);
+        const data = await res.json();
+        drawLineChart('usl-chart', data.processors, data.throughput, {
+            showLinear: true,
+            yLabel: 'Throughput C(N)',
+            peakX: data.peak_processors,
+            peakY: data.peak_throughput,
+        });
+        document.getElementById('usl-info').textContent =
+            `Peak throughput: ${data.peak_throughput.toFixed(1)}x at N=${data.peak_processors}. Beyond that, coherency overhead dominates.`;
+    }
+
+    async function updateLittle() {
+        const lam = parseFloat(document.getElementById('little-lambda').value);
+        const w = parseFloat(document.getElementById('little-w').value);
+        document.getElementById('little-lambda-val').textContent = lam;
+        document.getElementById('little-w-val').textContent = w.toFixed(3);
+
+        // Draw L as a function of λ for fixed W, and also L=f(W) for fixed λ
+        const lambdas = [];
+        const Ls = [];
+        for (let l = 1; l <= 1000; l += 5) {
+            lambdas.push(l);
+            Ls.push(l * w);
+        }
+        drawLineChart('little-chart', lambdas, Ls, {
+            xLabel: 'Arrival rate λ (req/s)',
+            yLabel: 'Items in system (L)',
+            color: '#22c55e',
+        });
+        document.getElementById('little-info').textContent =
+            `L = λ·W = ${lam} × ${w.toFixed(3)} = ${(lam * w).toFixed(1)} items in system at steady state.`;
+    }
+
+    // Wire up sliders
+    document.querySelectorAll('#amdahl-f, #amdahl-n').forEach(el => el.addEventListener('input', updateAmdahl));
+    document.querySelectorAll('#gustafson-f, #gustafson-n').forEach(el => el.addEventListener('input', updateGustafson));
+    document.querySelectorAll('#usl-sigma, #usl-kappa, #usl-n').forEach(el => el.addEventListener('input', updateUSL));
+    document.querySelectorAll('#little-lambda, #little-w').forEach(el => el.addEventListener('input', updateLittle));
+
+    // Initial draw
+    window.addEventListener('load', () => {
+        updateAmdahl(); updateGustafson(); updateUSL(); updateLittle();
+    });
+    window.addEventListener('resize', () => {
+        updateAmdahl(); updateGustafson(); updateUSL(); updateLittle();
+    });
+
+    // ==================== LAMPORT CLOCKS ====================
+    const PROCESS_COLORS = ['#0ea5e9', '#22c55e', '#eab308', '#e94560', '#a855f7'];
+
+    function drawLamportDiagram(state) {
+        const canvas = document.getElementById('lamport-canvas');
+        const ctx = canvas.getContext('2d');
+        const dpr = window.devicePixelRatio || 1;
+
+        const W = 700, H = 400;
+        canvas.width = W * dpr;
+        canvas.height = H * dpr;
+        canvas.style.width = W + 'px';
+        canvas.style.height = H + 'px';
+        ctx.scale(dpr, dpr);
+
+        ctx.clearRect(0, 0, W, H);
+
+        const procs = state.processes;
+        const n = procs.length;
+        if (n === 0) return;
+
+        const pad = { top: 40, bottom: 30, left: 60, right: 30 };
+        const colW = (W - pad.left - pad.right) / n;
+
+        // Find max timestamp for Y scale
+        let maxT = 1;
+        for (const p of procs) {
+            for (const e of p.events) {
+                if (e.timestamp > maxT) maxT = e.timestamp;
+            }
+        }
+        maxT = Math.max(maxT, 1);
+
+        const toX = (pid) => pad.left + colW * pid + colW / 2;
+        const toY = (t) => pad.top + (t / (maxT + 1)) * (H - pad.top - pad.bottom);
+
+        // Draw process timelines (vertical lines)
+        for (let i = 0; i < n; i++) {
+            const x = toX(i);
+            const color = procs[i].crashed ? '#ef4444' : PROCESS_COLORS[i % PROCESS_COLORS.length];
+
+            // Vertical line
+            ctx.strokeStyle = procs[i].crashed ? '#662222' : '#333';
+            ctx.lineWidth = 2;
+            ctx.setLineDash(procs[i].crashed ? [4, 4] : []);
+            ctx.beginPath();
+            ctx.moveTo(x, pad.top);
+            ctx.lineTo(x, H - pad.bottom);
+            ctx.stroke();
+            ctx.setLineDash([]);
+
+            // Process label
+            ctx.fillStyle = color;
+            ctx.font = 'bold 13px sans-serif';
+            ctx.textAlign = 'center';
+            ctx.fillText(procs[i].name, x, pad.top - 10);
+            if (procs[i].crashed) {
+                ctx.fillStyle = '#ef4444';
+                ctx.font = '10px sans-serif';
+                ctx.fillText('CRASHED', x, pad.top - 22);
+            }
+
+            // Clock value
+            ctx.fillStyle = '#e94560';
+            ctx.font = '11px monospace';
+            ctx.fillText(`t=${procs[i].clock}`, x, H - pad.bottom + 16);
+        }
+
+        // Draw messages (arrows between send and receive events)
+        for (const msg of state.messages) {
+            const sender = procs[msg.sender];
+            const sendEvt = sender.events[msg.send_event_idx];
+            const sx = toX(msg.sender);
+            const sy = toY(sendEvt.timestamp);
+
+            if (msg.delivered && msg.recv_event_idx != null) {
+                const receiver = procs[msg.receiver];
+                const recvEvt = receiver.events[msg.recv_event_idx];
+                const rx = toX(msg.receiver);
+                const ry = toY(recvEvt.timestamp);
+
+                // Arrow line
+                ctx.strokeStyle = '#eab308';
+                ctx.lineWidth = 1.5;
+                ctx.beginPath();
+                ctx.moveTo(sx, sy);
+                ctx.lineTo(rx, ry);
+                ctx.stroke();
+
+                // Arrowhead
+                const angle = Math.atan2(ry - sy, rx - sx);
+                ctx.fillStyle = '#eab308';
+                ctx.beginPath();
+                ctx.moveTo(rx, ry);
+                ctx.lineTo(rx - 8 * Math.cos(angle - 0.4), ry - 8 * Math.sin(angle - 0.4));
+                ctx.lineTo(rx - 8 * Math.cos(angle + 0.4), ry - 8 * Math.sin(angle + 0.4));
+                ctx.closePath();
+                ctx.fill();
+            } else {
+                // Undelivered — draw X
+                ctx.strokeStyle = '#ef4444';
+                ctx.lineWidth = 1.5;
+                const mx = (sx + toX(msg.receiver)) / 2;
+                const my = sy + 15;
+                ctx.beginPath(); ctx.moveTo(sx, sy); ctx.lineTo(mx, my); ctx.stroke();
+                ctx.beginPath(); ctx.moveTo(mx - 5, my - 5); ctx.lineTo(mx + 5, my + 5); ctx.stroke();
+                ctx.beginPath(); ctx.moveTo(mx + 5, my - 5); ctx.lineTo(mx - 5, my + 5); ctx.stroke();
+            }
+        }
+
+        // Draw events (dots on timelines)
+        for (let i = 0; i < n; i++) {
+            const x = toX(i);
+            const color = PROCESS_COLORS[i % PROCESS_COLORS.length];
+            for (const e of procs[i].events) {
+                const y = toY(e.timestamp);
+
+                // Dot
+                ctx.fillStyle = e.type === 'internal' ? color : (e.type === 'send' ? '#eab308' : '#22c55e');
+                ctx.beginPath();
+                ctx.arc(x, y, 5, 0, Math.PI * 2);
+                ctx.fill();
+
+                // Timestamp label
+                ctx.fillStyle = '#eee';
+                ctx.font = '10px monospace';
+                ctx.textAlign = 'left';
+                ctx.fillText(e.timestamp, x + 8, y + 3);
+
+                // Event label
+                if (e.label) {
+                    ctx.fillStyle = '#999';
+                    ctx.font = '9px sans-serif';
+                    ctx.fillText(e.label, x + 22, y + 3);
+                }
+            }
+        }
+    }
+
+    function updateProcessList(state) {
+        const list = document.getElementById('process-list');
+        list.innerHTML = '<h4 style="font-size:0.8rem;color:#999;margin-bottom:8px;">Processes</h4>';
+        for (const p of state.processes) {
+            const div = document.createElement('div');
+            div.className = 'process-item' + (p.crashed ? ' crashed' : '');
+            div.innerHTML = `
+                <span class="name">${p.name}</span>
+                <span class="clock">t=${p.clock}</span>
+                <button onclick="lamportToggleCrash(${p.id})">${p.crashed ? 'Recover' : 'Crash'}</button>
+            `;
+            list.appendChild(div);
+        }
+    }
+
+    async function lamportRefresh() {
+        const res = await fetch('/api/lamport/state');
+        const state = await res.json();
+        drawLamportDiagram(state);
+        updateProcessList(state);
+        document.getElementById('step-info').textContent =
+            `Step ${state.step_index} / ${state.total_steps}${state.done ? ' (done)' : ''}`;
+        document.getElementById('btn-step').disabled = state.done;
+        document.getElementById('btn-run').disabled = state.done;
+    }
+
+    async function lamportStep() {
+        await fetch('/api/lamport/step', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: '{}' });
+        lamportRefresh();
+    }
+
+    async function lamportRunAll() {
+        await fetch('/api/lamport/run-all', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: '{}' });
+        lamportRefresh();
+    }
+
+    async function lamportReset() {
+        await fetch('/api/lamport/reset', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: '{}' });
+        lamportRefresh();
+    }
+
+    async function lamportToggleCrash(pid) {
+        const res = await fetch('/api/lamport/state');
+        const state = await res.json();
+        const proc = state.processes[pid];
+        const endpoint = proc.crashed ? 'recover' : 'crash';
+        await fetch(`/api/lamport/${endpoint}`, {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({ process_id: pid }),
+        });
+        lamportRefresh();
+    }
+
+    // Init Lamport on tab switch
+    const origShowTab = showTab;
+    showTab = function(name) {
+        origShowTab(name);
+        if (name === 'lamport') lamportRefresh();
+    };
+    </script>
+</body>
+</html>
